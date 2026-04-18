@@ -84,3 +84,35 @@ WORKER_PUBLIC_URL = "https://your-worker-name.workers.dev"
 ADMIN_PUBLIC_URL = "https://line-harness-admin.pages.dev"
 LIFF_PUBLIC_URL = "https://line-harness-liff.pages.dev"
 CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"
+
+# ═══════════════════════════════════════════════════════════════
+# choju 環境
+# 使い方: npx wrangler deploy --env choju
+# D1:     npx wrangler d1 execute line-harness-choju --remote --env choju --file ...
+# ═══════════════════════════════════════════════════════════════
+[env.choju]
+account_id = "f51d4f721339259ede0a21f24653dbc1"
+
+[env.choju.assets]
+directory = "dist/client"
+binding = "ASSETS"
+
+[[env.choju.d1_databases]]
+binding = "DB"
+database_name = "line-harness-choju"
+database_id = "f4f83712-6572-4d7a-aef2-b2b8e3eb11aa"
+
+[[env.choju.r2_buckets]]
+binding = "IMAGES"
+bucket_name = "line-harness-images-choju"
+
+[env.choju.triggers]
+crons = ["*/5 * * * *"]
+
+# --- sentei / saitan は将来追加（コメントアウトで残す）---
+# [env.sentei]
+# account_id = "..."
+# [[env.sentei.d1_databases]]
+# binding = "DB"
+# database_name = "line-harness-sentei"
+# database_id = "..."
