@@ -109,6 +109,7 @@ database_id = "f4f83712-6572-4d7a-aef2-b2b8e3eb11aa"
 
 [env.choju.vars]
 WORKER_URL = "https://line-harness-choju.account-for-tools.workers.dev"
+LIFF_URL = "https://liff.line.me/2006864438-tObCIL3U"
 
 [env.choju.triggers]
 crons = ["*/5 * * * *"]
