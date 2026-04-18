@@ -103,9 +103,12 @@ binding = "DB"
 database_name = "line-harness-choju"
 database_id = "f4f83712-6572-4d7a-aef2-b2b8e3eb11aa"
 
-[[env.choju.r2_buckets]]
-binding = "IMAGES"
-bucket_name = "line-harness-images-choju"
+# [[env.choju.r2_buckets]]  ← R2 未有効化のため一時コメントアウト
+# binding = "IMAGES"
+# bucket_name = "line-harness-images-choju"
+
+[env.choju.vars]
+WORKER_URL = "https://line-harness-choju.account-for-tools.workers.dev"
 
 [env.choju.triggers]
 crons = ["*/5 * * * *"]
