@@ -91,6 +91,7 @@ CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"
 # D1:     npx wrangler d1 execute line-harness-choju --remote --env choju --file ...
 # ═══════════════════════════════════════════════════════════════
 [env.choju]
+name = "line-harness-choju"
 account_id = "f51d4f721339259ede0a21f24653dbc1"
 
 [env.choju.assets]
