@@ -34,6 +34,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_NAME: ${{ secrets.D1_DATABASE_NAME }}
+          D1_MIGRATION_BASELINE: ${{ vars.D1_MIGRATION_BASELINE }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
@@ -41,6 +42,23 @@ jobs:
 
           npx wrangler d1 execute "$D1_DATABASE_NAME" --remote --command \
             "CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
+
+          # Existing fork databases may have been initialized from bootstrap.sql
+          # before this ledger was introduced. Seed only the verified baseline;
+          # fresh databases leave this variable unset and run every migration.
+          if [ -n "$D1_MIGRATION_BASELINE" ]; then
+            case "$D1_MIGRATION_BASELINE" in
+              *[!0-9]*) echo "D1_MIGRATION_BASELINE must be numeric"; exit 1 ;;
+            esac
+            for f in $(ls packages/db/migrations/*.sql | sort); do
+              name=$(basename "$f")
+              version="${name%%_*}"
+              if [ "$version" -le "$D1_MIGRATION_BASELINE" ]; then
+                npx wrangler d1 execute "$D1_DATABASE_NAME" --remote --command \
+                  "INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES ('$name', datetime('now'))"
+              fi
+            done
+          fi
 
           for f in $(ls packages/db/migrations/*.sql | sort); do
             name=$(basename "$f")
