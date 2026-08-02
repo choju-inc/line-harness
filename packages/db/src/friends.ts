@@ -212,7 +212,11 @@ export async function getMergedMetadataByUserId(
   userId: string,
 ): Promise<Record<string, unknown>> {
   const result = await db
-    .prepare(`SELECT metadata FROM friends WHERE user_id = ? AND metadata IS NOT NULL AND metadata != '{}'`)
+    .prepare(
+      `SELECT metadata FROM friends
+       WHERE user_id = ? AND metadata IS NOT NULL AND metadata != '{}'
+       ORDER BY updated_at DESC`,
+    )
     .bind(userId)
     .all<{ metadata: string }>();
   const merged: Record<string, unknown> = {};

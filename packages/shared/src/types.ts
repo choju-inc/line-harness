@@ -87,6 +87,8 @@ export interface Tag {
   color: string;
   /** 作成日時 (ISO 8601) */
   createdAt: string;
+  /** このタグが付与されている友だち数 (GET /api/tags のみ付与) */
+  friendCount?: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -809,6 +811,7 @@ export type AutomationEventType =
   | "score_threshold"
   | "cv_fire"
   | "message_received"
+  | "postback_received"
   | "calendar_booked";
 
 export interface AutomationAction {

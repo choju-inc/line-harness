@@ -78,6 +78,7 @@ import { messageTemplates } from './routes/message-templates.js';
 import dedupPreview from './routes/dedup-preview.js';
 import { profileRefresh } from './routes/profile-refresh.js';
 import { richMenuGroups } from './routes/rich-menu-groups.js';
+import { lineProxy } from './routes/line-proxy.js';
 import adminVersion from './routes/admin-version.js';
 import adminUpdate from './routes/admin-update.js';
 import { isLinkPreviewBot } from './lib/og-bot.js';
@@ -200,6 +201,8 @@ app.route('/', messageTemplates);
 app.route('/', dedupPreview);
 app.route('/', profileRefresh);
 app.route('/', richMenuGroups);
+// LINE Messaging API 互換プロキシ — 外部エージェントの直接送信を messages_log に残す
+app.route('/', lineProxy);
 
 // Phase 5 (upgrade flow) — public build metadata endpoint. Mounted under
 // /admin/ but intentionally unauthenticated: the dashboard fetches /admin/version
@@ -329,6 +332,17 @@ app.get('/r/:ref', async (c) => {
   if (page && PAGE_PASSTHROUGH_ALLOWED.has(page)) liffParams.set('page', page);
   const id = c.req.query('id');
   if (id) liffParams.set('id', id);
+  const slug = c.req.query('slug');
+  if (slug) liffParams.set('slug', slug);
+
+  // Ad click IDs + UTM passthrough. /auth/line forwards its full query string
+  // to /r/:ref, but rebuilding liffParams here without these keys silently
+  // drops ad attribution for the primary mobile path. Keep this list in sync
+  // with the params /auth/line reads.
+  for (const key of ['gclid', 'fbclid', 'twclid', 'ttclid', 'utm_source', 'utm_medium', 'utm_campaign']) {
+    const value = c.req.query(key);
+    if (value) liffParams.set(key, value);
+  }
   const liffTarget = liffParams.toString() ? `${liffUrl}?${liffParams.toString()}` : liffUrl;
 
   // Help link carries the *resolved* liff target as `t=` so the help page
@@ -617,6 +631,8 @@ app.get('/o', async (c) => {
   if (page && PAGE_PASSTHROUGH_ALLOWED.has(page)) liffParams.set('page', page);
   const id = c.req.query('id');
   if (id) liffParams.set('id', id);
+  const slug = c.req.query('slug');
+  if (slug) liffParams.set('slug', slug);
   const liffTarget = `https://liff.line.me/${liffId}?${liffParams.toString()}`;
 
   const ua = (c.req.header('user-agent') || '').toLowerCase();
@@ -827,7 +843,20 @@ export async function notFoundHandler(
   if (!c.env.ASSETS || typeof c.env.ASSETS.fetch !== 'function') {
     return c.json({ success: false, error: 'Not found' }, 404);
   }
-  return c.env.ASSETS.fetch(c.req.raw);
+  const assetRes = await c.env.ASSETS.fetch(c.req.raw);
+  if (assetRes.status !== 404) return assetRes;
+
+  // SPA fallback: LIFF deep links (/events/:id など) は
+  // アセットストアに実ファイルが無く 404 で返る。HTML を要求する GET
+  // ナビゲーションに限り index.html を返してクライアントルーターに任せる。
+  // それ以外 (存在しない .js/.png への参照など) は 404 のまま透過する。
+  const accept = c.req.header('accept') ?? '';
+  if (c.req.method === 'GET' && accept.includes('text/html')) {
+    return c.env.ASSETS.fetch(
+      new Request(new URL('/', c.req.url).toString(), { headers: c.req.raw.headers }),
+    );
+  }
+  return assetRes;
 }
 app.notFound(notFoundHandler);
 
