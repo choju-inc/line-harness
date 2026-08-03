@@ -19,6 +19,25 @@ export async function getTags(db: D1Database): Promise<Tag[]> {
   return result.results;
 }
 
+export interface TagWithCount extends Tag {
+  friend_count: number;
+}
+
+export async function getTagsWithCounts(
+  db: D1Database,
+): Promise<TagWithCount[]> {
+  const result = await db
+    .prepare(
+      `SELECT t.*, COUNT(ft.friend_id) AS friend_count
+       FROM tags t
+       LEFT JOIN friend_tags ft ON ft.tag_id = t.id
+       GROUP BY t.id
+       ORDER BY t.name ASC`,
+    )
+    .all<TagWithCount>();
+  return result.results;
+}
+
 export interface CreateTagInput {
   name: string;
   color?: string;
