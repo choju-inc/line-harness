@@ -113,6 +113,21 @@ export function setCsrfToken(token: string | undefined | null): void {
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
+/**
+ * Non-2xx API responses. message keeps the legacy `API error: <status>` shape
+ * (existing catch blocks render e.message), while `status` lets callers
+ * branch on the code without parsing the string.
+ */
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number) {
+    super(`API error: ${status}`)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const method = (options?.method ?? 'GET').toUpperCase()
   const csrfHeaders: Record<string, string> = {}
@@ -130,7 +145,7 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
       ...options?.headers,
     },
   })
-  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status)
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
@@ -204,8 +219,9 @@ export const api = {
       ),
   },
   tags: {
-    list: () =>
-      fetchApi<ApiResponse<Tag[]>>('/api/tags'),
+    /** withCounts で friendCount 付き (JOIN 集計 — タグ管理ページ用)。 */
+    list: (params?: { withCounts?: boolean }) =>
+      fetchApi<ApiResponse<Tag[]>>(`/api/tags${params?.withCounts ? '?withCounts=1' : ''}`),
     create: (data: { name: string; color: string }) =>
       fetchApi<ApiResponse<Tag>>('/api/tags', {
         method: 'POST',
@@ -1800,3 +1816,67 @@ export const eventsApi = {
       withAccount('/api/events/admin/events/notifications/pending', accountId),
     ),
 };
+
+// ===== Webinars =====
+
+export type WebinarScheduleRule = {
+  type: 'daily' | 'weekly' | 'once'
+  time?: string
+  days?: number[]
+  at?: string
+}
+
+export type Webinar = {
+  id: string
+  accountId: string | null
+  title: string
+  slug: string
+  status: 'draft' | 'active' | 'archived'
+  videoPrefix: string | null
+  durationSeconds: number
+  schedule: WebinarScheduleRule[]
+  cta: { label: string; url: string; showAtSeconds: number } | null
+  tagOnAttend: string | null
+  tagOnCtaClick: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type WebinarInput = Partial<Omit<Webinar, 'id' | 'createdAt' | 'updatedAt'>>
+
+export type WebinarSakuraComment = { id?: string; atSeconds: number; authorName: string; body: string }
+
+export type WebinarAnalytics = {
+  sessions: Array<{ sessionStartAt: number; viewers: number; avgWatchedSeconds: number; ctaClicks: number }>
+  dropoff: Array<{ bucketStart: number; viewers: number }>
+}
+
+export type WebinarUserComment = {
+  id: string
+  friendId: string
+  friendName: string | null
+  sessionStartAt: number
+  atSeconds: number
+  body: string
+  createdAt: string
+}
+
+export const webinarApi = {
+  list: () => fetchApi<{ data: Webinar[] }>('/api/webinars'),
+  get: (id: string) => fetchApi<{ data: Webinar }>(`/api/webinars/${id}`),
+  create: (input: WebinarInput) =>
+    fetchApi<{ data: Webinar }>('/api/webinars', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: WebinarInput) =>
+    fetchApi<{ data: Webinar }>(`/api/webinars/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+  remove: (id: string) => fetchApi<{ data: null }>(`/api/webinars/${id}`, { method: 'DELETE' }),
+  comments: (id: string) =>
+    fetchApi<{ data: WebinarSakuraComment[] }>(`/api/webinars/${id}/comments`),
+  saveComments: (id: string, comments: WebinarSakuraComment[]) =>
+    fetchApi<{ data: { count: number } }>(`/api/webinars/${id}/comments`, {
+      method: 'PUT',
+      body: JSON.stringify({ comments: comments.map(({ atSeconds, authorName, body }) => ({ atSeconds, authorName, body })) }),
+    }),
+  analytics: (id: string) => fetchApi<{ data: WebinarAnalytics }>(`/api/webinars/${id}/analytics`),
+  userComments: (id: string) =>
+    fetchApi<{ data: WebinarUserComment[] }>(`/api/webinars/${id}/user-comments`),
+}
